@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DeepSeek-V4 Architecture Visual Walkthrough</title>
+
+<meta name="description" content="Interactive visual notebook explaining DeepSeek-V4 architecture: mHC residuals, CSA/HCA attention, MoE routing, KV cache, and million-token context.">
+
+<!-- Open Graph / LinkedIn preview -->
+<meta property="og:title" content="DeepSeek-V4 Architecture Visual Walkthrough">
+<meta property="og:description" content="A visual, step-by-step interactive notebook explaining DeepSeek-V4 architecture with toy matrices, CSA/HCA attention, mHC residuals, MoE routing, and KV-cache flow.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://teal-cat-7b0240.netlify.app/">
+<meta property="og:site_name" content="DeepSeek-V4 Visual Notebook">
+
+<!-- Preview image -->
+<meta property="og:image" content="https://teal-cat-7b0240.netlify.app/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DeepSeek-V4 visual walkthrough showing mHC, CSA/HCA attention, MoE routing, and million-token context.">
+
+<!-- Twitter/X fallback, also useful in some tools -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DeepSeek-V4 Architecture Visual Walkthrough">
+<meta name="twitter:description" content="Interactive visual notebook explaining DeepSeek-V4 with toy matrices and architecture diagrams.">
+<meta name="twitter:image" content="https://teal-cat-7b0240.netlify.app/preview.png"><style>
+:root{
+  --bg:#f6f8fb;
+  --paper:#ffffff;
+  --paper-soft:#fbfcfe;
+  --ink:#172033;
+  --muted:#667085;
+  --line:#d0d7e2;
+  --line-soft:#e6ebf2;
+  --accent:#1d4ed8;
+  --accent-weak:#e8f0ff;
+  --accent-mid:#b9cdfc;
+  --good:#087443;
+  --good-weak:#e8f7ef;
+  --amber:#b54708;
+  --amber-weak:#fff3e6;
+  --danger:#b42318;
+  --danger-weak:#fff0ee;
+  --slate:#344054;
+  --shadow:0 18px 42px rgba(16,24,40,.10);
+  --radius:20px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(29,78,216,.08), transparent 34%),
+    linear-gradient(180deg,#fbfcff 0%,var(--bg) 42%,#f2f5f9 100%);
+  color:var(--ink);
+  font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+a{color:var(--accent)}
+.header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(255,255,255,.82);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line-soft);
+}
+.header-inner{max-width:1500px;margin:0 auto;padding:14px 20px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+.brand{display:flex;gap:12px;align-items:center;min-width:0}
+.logo{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;background:#fff;color:var(--accent);font-weight:900;box-shadow:0 10px 25px rgba(16,24,40,.07)}
+h1{font-size:clamp(18px,2.4vw,28px);line-height:1.1;margin:0;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-sub{font-size:13px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:900px}
+.header-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:12px;padding:10px 13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(16,24,40,.05);transition:transform .15s, border-color .2s, background .2s}
+.btn:hover{transform:translateY(-1px);border-color:#a9b7ca;background:#fbfcff}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{background:transparent;box-shadow:none}
+.btn.small{padding:7px 10px;font-size:13px}
+main{max-width:1500px;margin:0 auto;padding:22px 20px 46px}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin-bottom:18px}
+.card{background:var(--paper);border:1px solid var(--line-soft);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card-pad{padding:20px}
+.kicker{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:900;letter-spacing:.08em;text-transform:uppercase;font-size:12px;margin-bottom:10px}
+.kicker::before{content:"";width:8px;height:8px;border-radius:99px;background:var(--accent);box-shadow:0 0 0 5px var(--accent-weak)}
+.hero h2{font-size:clamp(26px,4vw,48px);line-height:1.02;letter-spacing:-.05em;margin:0 0 12px}
+.lead{font-size:16px;line-height:1.65;color:var(--slate);margin:0;max-width:850px}
+.trust-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.trust-card{border:1px solid var(--line-soft);border-radius:16px;background:var(--paper-soft);padding:14px;min-height:112px}
+.trust-card b{display:block;font-size:13px;margin-bottom:6px;color:var(--ink)}
+.trust-card span{font-size:13px;line-height:1.45;color:var(--muted)}
+.example-doc{display:grid;gap:10px}
+.doc-line{border:1px solid var(--line-soft);background:#fff;border-radius:14px;padding:12px 14px;color:var(--slate);line-height:1.45;position:relative;overflow:hidden}
+.doc-line.answer{border-color:rgba(8,116,67,.28);background:var(--good-weak)}
+.doc-line.question{border-color:rgba(29,78,216,.24);background:var(--accent-weak)}
+.doc-line .tag{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:900;display:block;margin-bottom:3px}
+.doc-line .secret{font-weight:900;color:var(--good);background:#dff4e9;border:1px solid #bce7ce;border-radius:8px;padding:2px 6px}
+.app{display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:18px;align-items:start}
+.sidepanel{position:sticky;top:86px;display:grid;gap:14px}
+.timeline{padding:12px;display:grid;gap:8px;max-height:calc(100vh - 110px);overflow:auto}
+.step-btn{width:100%;border:1px solid var(--line-soft);background:#fff;border-radius:14px;padding:10px;display:grid;grid-template-columns:28px 1fr;gap:9px;text-align:left;cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+.step-btn:hover{transform:translateX(2px);border-color:#b7c2d4}
+.step-btn.active{background:var(--accent-weak);border-color:var(--accent-mid)}
+.step-num{width:28px;height:28px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:900;color:var(--muted);background:#fff}
+.step-btn.active .step-num{background:var(--accent);border-color:var(--accent);color:#fff}
+.step-label{font-weight:900;font-size:13px;color:var(--ink);line-height:1.2}
+.step-desc{font-size:12px;color:var(--muted);line-height:1.3;margin-top:3px}
+.center{display:grid;gap:14px;min-width:0}
+.player{padding:14px;display:grid;gap:12px}
+.player-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.speed{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px;font-weight:800}
+.speed input{accent-color:var(--accent)}
+.progress-shell{height:12px;background:#eef2f7;border:1px solid var(--line-soft);border-radius:99px;overflow:hidden;position:relative}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,#dbe8ff,#1d4ed8);border-radius:99px;transition:width .45s ease}
+.packet{position:absolute;top:50%;left:0;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 8px 18px rgba(29,78,216,.25);transform:translate(-50%,-50%);transition:left .45s ease}
+.stage{min-height:680px;padding:18px;position:relative}
+.stage-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.stage-title{margin:0;font-size:28px;line-height:1.05;letter-spacing:-.03em}
+.stage-sub{color:var(--muted);line-height:1.55;margin:7px 0 0;max-width:850px}
+.stage-badge{border:1px solid var(--line-soft);background:var(--paper-soft);border-radius:99px;padding:8px 11px;font-weight:900;color:var(--slate);font-size:12px;white-space:nowrap}
+.flow-board{border:1px solid var(--line-soft);background:linear-gradient(180deg,#fff,#fbfcff);border-radius:18px;padding:12px;margin-bottom:14px;overflow:hidden}
+.flow-svg{width:100%;height:150px;display:block}
+.flow-node{fill:#fff;stroke:#b7c2d4;stroke-width:1.4}
+.flow-node-active{fill:#e8f0ff;stroke:#1d4ed8;stroke-width:2.2;filter:drop-shadow(0 8px 16px rgba(29,78,216,.12))}
+.flow-line{stroke:#c6cfdc;stroke-width:2.5;fill:none;stroke-linecap:round}
+.flow-line-active{stroke:#1d4ed8;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-dasharray:10 8;animation:dash 1.4s linear infinite}
+.flow-text{font:800 12px Inter,Arial;fill:#344054;text-anchor:middle}
+.flow-text-active{fill:#1d4ed8}
+@keyframes dash{to{stroke-dashoffset:-36}}
+.visual-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.visual-grid.single{grid-template-columns:1fr}
+.visual-grid.three{grid-template-columns:repeat(3,1fr)}
+.panel{border:1px solid var(--line-soft);background:#fff;border-radius:18px;padding:14px;overflow:hidden}
+.panel-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:#475467;font-weight:900}
+.panel-title .mini{font-size:12px;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:700}
+.matrix-wrap{overflow:auto;max-width:100%}
+table.matrix{border-collapse:separate;border-spacing:5px;min-width:max-content}
+.matrix th{font-size:11px;color:#667085;font-weight:900;text-align:center;padding:1px 5px;white-space:nowrap}
+.matrix td{min-width:54px;text-align:center;border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 8px;font-variant-numeric:tabular-nums;font-weight:800;color:#1d2939;position:relative;animation:cellIn .45s both;transition:transform .2s,background .2s,border-color .2s,box-shadow .2s}
+.matrix td.small{min-width:42px;padding:7px 6px;font-size:12px}
+.matrix td.active{background:var(--accent-weak);border-color:#8cabfa;box-shadow:0 0 0 3px rgba(29,78,216,.08)}
+.matrix td.good{background:var(--good-weak);border-color:#97d7b2;color:#075f3a}
+.matrix td.amber{background:var(--amber-weak);border-color:#ffc78a;color:#7a2e0e}
+.matrix td.mutedcell{background:#f8fafc;color:#98a2b3}
+.matrix td.pulse{animation:cellIn .45s both, pulseCell 1.8s ease-in-out infinite}
+@keyframes cellIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes pulseCell{0%,100%{box-shadow:0 0 0 0 rgba(29,78,216,.0)}50%{box-shadow:0 0 0 5px rgba(29,78,216,.12)}}
+.tokens{display:flex;flex-wrap:wrap;gap:8px}
+.token{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 10px;font-weight:900;color:#344054;position:relative;overflow:hidden;transition:transform .2s,border-color .2s,background .2s;animation:tokenIn .4s both}
+.token .pos{display:block;font-size:10px;color:#98a2b3;font-weight:900;margin-top:3px}
+.token.active{background:var(--accent-weak);border-color:#8cabfa;color:#153d9a;transform:translateY(-2px)}
+.token.good{background:var(--good-weak);border-color:#97d7b2;color:#075f3a}
+.token.local{background:var(--amber-weak);border-color:#ffc78a;color:#7a2e0e}
+.token.dim{opacity:.46}
+@keyframes tokenIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.block-chain{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+.block{border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px;min-width:130px;position:relative;animation:cellIn .45s both}
+.block.good{background:var(--good-weak);border-color:#97d7b2}
+.block.amber{background:var(--amber-weak);border-color:#ffc78a}
+.block.active{background:var(--accent-weak);border-color:#8cabfa}
+.block b{display:block;font-size:13px;margin-bottom:6px}.block span{display:block;font-size:12px;color:var(--muted);line-height:1.35}
+.arrow{display:grid;place-items:center;color:#98a2b3;font-weight:900;font-size:22px;min-width:18px}
+.bars{display:grid;gap:10px}
+.bar-row{display:grid;grid-template-columns:112px 1fr 54px;gap:10px;align-items:center}
+.bar-label{font-weight:900;color:#475467;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar-track{height:18px;background:#eef2f7;border:1px solid var(--line-soft);border-radius:99px;overflow:hidden}.bar-fill{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .8s ease}.bar-fill.good{background:var(--good)}.bar-fill.amber{background:var(--amber)}.bar-value{font-variant-numeric:tabular-nums;color:#344054;font-weight:900;font-size:12px;text-align:right}
+.formula{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f8fafc;border:1px solid var(--line-soft);border-radius:14px;padding:12px;color:#344054;overflow:auto;line-height:1.6;font-size:13px}
+.big-formula{font-size:16px;text-align:center;color:#172033;background:#fff}
+.expert-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.expert{border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px;min-height:110px;display:grid;align-content:start;gap:5px;transition:transform .2s,border-color .2s,background .2s}.expert.selected{background:var(--good-weak);border-color:#97d7b2;transform:translateY(-3px)}.expert.shared{background:var(--amber-weak);border-color:#ffc78a}.expert b{font-size:13px}.expert span{font-size:12px;line-height:1.35;color:var(--muted)}
+.logit-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.logit{border:1px solid var(--line);border-radius:16px;background:#fff;padding:12px;text-align:center}.logit.best{background:var(--good-weak);border-color:#97d7b2}.logit b{display:block;font-size:13px;word-break:break-word}.logit .prob{font-size:24px;font-weight:900;margin:6px 0 2px;color:#1d2939}.logit.best .prob{color:var(--good)}.logit span{font-size:12px;color:var(--muted)}
+.info{display:grid;gap:12px}.info-card{border:1px solid var(--line-soft);background:#fff;border-radius:18px;padding:14px;animation:cellIn .4s both}.info-card h3{font-size:13px;margin:0 0 7px;text-transform:uppercase;letter-spacing:.08em;color:#667085}.info-card p{margin:0;color:#344054;line-height:1.55;font-size:14px}.info-card.what{border-left:4px solid var(--accent)}.info-card.why{border-left:4px solid var(--good)}.info-card.output{border-left:4px solid var(--amber)}.info-card.say{background:#f8fafc;border-left:4px solid #667085}.say-line{font-weight:900;color:#172033}
+.real-table{width:100%;border-collapse:collapse;font-size:13px}.real-table th,.real-table td{border-bottom:1px solid var(--line-soft);padding:9px 6px;text-align:left;vertical-align:top}.real-table th{color:#667085;text-transform:uppercase;letter-spacing:.08em;font-size:11px}.real-table td{color:#344054}.real-table b{color:#172033}
+.deploy{margin-top:18px;padding:20px}.deploy h2{margin:0 0 8px}.deploy p{color:var(--slate);line-height:1.6}.deploy-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}.deploy-step{border:1px solid var(--line-soft);background:#fff;border-radius:16px;padding:14px}.deploy-step b{display:block;margin-bottom:6px}.deploy-step span{font-size:14px;color:var(--muted);line-height:1.45}.note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:12px}.scan-line{position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.55;animation:scan 2.6s ease-in-out infinite}@keyframes scan{0%{transform:translateY(0);opacity:.0}15%{opacity:.55}75%{opacity:.55}100%{transform:translateY(620px);opacity:0}}
+.footer{font-size:12px;color:var(--muted);line-height:1.6;margin-top:20px;text-align:center}
+@media(max-width:1250px){.app{grid-template-columns:230px minmax(0,1fr)}.rightpanel{grid-column:1/-1;position:static}.sidepanel{top:82px}.visual-grid,.visual-grid.three{grid-template-columns:1fr}.expert-grid,.logit-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:850px){.header-inner{align-items:flex-start;flex-direction:column}.hero,.app,.trust-grid,.deploy-steps{grid-template-columns:1fr}.sidepanel{position:static}.stage{min-height:auto}.timeline{max-height:none}.header-sub,h1{white-space:normal}.logit-grid,.expert-grid{grid-template-columns:1fr}.visual-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="logo">V4</div>
+      <div>
+        <h1>DeepSeek-V4:  visual end-to-end dry run</h1>
+        <div class="header-sub">Light, paper-aligned animation: tokens -> embeddings -> mHC -> CSA/HCA -> MoE -> answer.</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn ghost small" id="resetBtn">Restart</button>
+      <a class="btn small" href="#deploy">Netlify Drop</a>
+    </div>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <div class="card card-pad">
+      <div class="kicker">Teaching mode</div>
+      <h2>Watch one long-context question move through the architecture.</h2>
+      <p class="lead">This redesigned animation uses a small, readable matrix example. The numbers are intentionally tiny, but the flow mirrors the paper: DeepSeek-V4 keeps a Transformer backbone, uses mHC around the layers, hybrid CSA/HCA attention for long context, DeepSeekMoE for feed-forward capacity, and a prediction head at the end.</p>
+      <div class="trust-grid">
+        <div class="trust-card"><b>Less colorful, more precise</b><span>Only blue for the active path, green for retrieved long-range evidence, and amber for local sliding-window tokens.</span></div>
+        <div class="trust-card"><b>Toy math, real mapping</b><span>Toy m=3 and tiny d=4 keep the dry run readable. Real settings are shown beside each concept.</span></div>
+        <div class="trust-card"><b>One story throughout</b><span>The same input asks for a hidden codename, so every block has a concrete reason to exist.</span></div>
+      </div>
+    </div>
+    <div class="card card-pad">
+      <div class="kicker">Single input example</div>
+      <div class="example-doc">
+        <div class="doc-line"><span class="tag">Earlier document tokens</span>Policy memo ... project notes ... appendix ...</div>
+        <div class="doc-line answer"><span class="tag">Needle in the long context</span>The project codename is <span class="secret">BLUE-731</span>.</div>
+        <div class="doc-line question"><span class="tag">Question near the end</span>Question: What is the project codename?</div>
+      </div>
+      <p class="note">The app shows why compressed long-range retrieval matters: the answer is not in the recent local window, so CSA must retrieve the older answer block.</p>
+    </div>
+  </section>
+
+  <section class="app">
+    <aside class="card sidepanel">
+      <div class="timeline" id="timeline"></div>
+    </aside>
+
+    <section class="center">
+      <div class="card player">
+        <div class="player-top">
+          <div>
+            <strong id="playerTitle">Step 1</strong>
+            <div class="note" id="playerNote">Use Play or Next to walk through the dry run.</div>
+          </div>
+          <div class="controls">
+            <button class="btn" id="prevBtn">Prev</button>
+            <button class="btn primary" id="playBtn">Play</button>
+            <button class="btn" id="nextBtn">Next</button>
+            <label class="speed">Speed <input id="speedRange" type="range" min="700" max="3200" step="100" value="1700" /></label>
+          </div>
+        </div>
+        <div class="progress-shell"><div class="progress-bar" id="progressBar"></div><div class="packet" id="packet"></div></div>
+      </div>
+
+      <div class="card stage" id="stage"><div class="scan-line"></div></div>
+    </section>
+
+    <aside class="rightpanel sidepanel">
+      <div class="card card-pad info" id="infoPanel"></div>
+      <div class="card card-pad">
+        <div class="panel-title">Paper alignment <span class="mini">real DeepSeek-V4 settings</span></div>
+        <table class="real-table">
+          <tr><th>Item</th><th>V4-Flash</th><th>V4-Pro</th></tr>
+          <tr><td><b>Layers / d</b></td><td>43 / 4096</td><td>61 / 7168</td></tr>
+          <tr><td><b>CSA</b></td><td>m=4, top-k=512</td><td>m=4, top-k=1024</td></tr>
+          <tr><td><b>HCA</b></td><td>m'=128</td><td>m'=128</td></tr>
+          <tr><td><b>Sliding window</b></td><td>128</td><td>128</td></tr>
+          <tr><td><b>MoE</b></td><td>1 shared + 256 routed, 6 active</td><td>1 shared + 384 routed, 6 active</td></tr>
+          <tr><td><b>mHC</b></td><td>n_hc=4, Sinkhorn 20</td><td>n_hc=4, Sinkhorn 20</td></tr>
+        </table>
+        <p class="note">These values come from the paper. This animation uses smaller toy values only so the math fits on screen.</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="card deploy" id="deploy">
+    <div class="kicker">Netlify Drop ready</div>
+    <h2>Deployment package structure</h2>
+    <p>This site has no build step and no external JavaScript dependencies. For Netlify Drop, use the generated folder or ZIP that contains this <code>index.html</code>.</p>
+    <div class="deploy-steps">
+      <div class="deploy-step"><b>1. Download the ZIP</b><span>Use the ZIP file I provide in the chat. It contains the static site folder.</span></div>
+      <div class="deploy-step"><b>2. Open Netlify Drop</b><span>Drag the folder, ZIP, or single HTML file into the Drop area.</span></div>
+      <div class="deploy-step"><b>3. Share the live URL</b><span>Netlify gives you a deployed static site URL after upload.</span></div>
+    </div>
+  </section>
+
+  <div class="footer">Educational toy simulation. Not real DeepSeek model weights or exact internal activations.</div>
+</main>
+<script>
+const tokens = [
+  '<BOS>','Policy','memo','project','codename','is','BLUE-731','near','page','42','Question:','codename?'
+];
+const embeddings = [
+  [0.10,0.00,0.10,0.20],[0.80,0.10,0.20,0.00],[0.70,0.20,0.20,0.10],
+  [0.20,0.55,0.20,0.10],[0.25,1.00,0.25,0.20],[0.10,0.30,0.30,0.10],
+  [0.25,1.20,1.00,0.30],[0.05,0.20,0.20,0.70],[0.10,0.10,0.10,0.70],
+  [0.00,0.00,0.20,0.90],[0.40,0.50,0.40,0.00],[0.20,1.10,0.40,0.10]
+];
+const csaBlocks = [
+  {name:'B0', tokens:[0,1,2], label:'intro', vec:[0.53,0.10,0.17,0.10], score:0.32},
+  {name:'B1', tokens:[3,4,5], label:'codename setup', vec:[0.18,0.62,0.25,0.13], score:0.86},
+  {name:'B2', tokens:[6,7,8], label:'answer block', vec:[0.13,0.50,0.43,0.57], score:1.54},
+  {name:'B3', tokens:[9,10], label:'question tail', vec:[0.20,0.25,0.30,0.45], score:0.64}
+];
+const hcaBlocks = [
+  {name:'H0', tokens:[0,1,2,3,4,5], label:'first half summary', vec:[0.36,0.36,0.21,0.12], weight:.34},
+  {name:'H1', tokens:[6,7,8,9,10,11], label:'second half summary', vec:[0.17,0.52,0.38,0.45], weight:.66}
+];
+const finalKV = [
+  ['CSA B2 answer',0.13,0.50,0.43,0.57],
+  ['local page',0.10,0.10,0.10,0.70],
+  ['local 42',0.00,0.00,0.20,0.90],
+  ['local Question:',0.40,0.50,0.40,0.00]
+];
+const attnWeights = [
+  ['answer block',.68,'good'], ['local page',.06,'amber'], ['local 42',.09,'amber'], ['local question',.17,'amber']
+];
+const mhcB = [[0.70,0.10,0.10,0.10],[0.10,0.70,0.10,0.10],[0.10,0.10,0.70,0.10],[0.10,0.10,0.10,0.70]];
+const moeInput = [[0.28,1.12,0.84,0.18]];
+const moeOut = [[0.41,1.54,1.29,0.22]];
+const logits = [
+  ['BLUE-731',3.40,.78],['GREEN-014',0.55,.04],['page 42',1.10,.08],['not found',0.20,.03],['memo',0.75,.07]
+];
+const steps = [
+  {short:'Input', desc:'The one sequence', title:'1. Single input: document plus question', stage:'Input sequence', focus:'input',
+    what:'We start with one sequence containing both the long document and the user question at the end.',
+    why:'A long-context model must answer using information that may be far away from the question.',
+    output:'A list of tokens. The answer token BLUE-731 is earlier; the query token codename? is near the end.',
+    say:'The model sees one long sequence, not a separate database lookup.'},
+  {short:'Embedding', desc:'Tokens become vectors', title:'2. Embedding lookup creates H0', stage:'Embedding', focus:'embed',
+    what:'Each token ID indexes a learned embedding row. The result is a hidden matrix H0 with shape n x d.',
+    why:'Neural layers need vectors, not raw words. Similar concepts can have similar vector directions.',
+    output:'Toy H0 has 12 rows and 4 hidden features. Real DeepSeek-V4 uses much larger hidden sizes.',
+    say:'Embedding converts the text into a matrix that the Transformer can process.'},
+  {short:'mHC', desc:'Stable residual lanes', title:'3. mHC expands the residual stream', stage:'mHC pre-mix', focus:'mhc',
+    what:'mHC keeps multiple residual lanes and mixes them before the attention or MoE layer.',
+    why:'In deep models, naive residual flow can become unstable. mHC constrains the residual mixing to improve signal propagation.',
+    output:'Toy residual state becomes 4 lanes. A pre-mix A creates the normal layer input.',
+    say:'mHC is a controlled multi-lane residual highway around each block.'},
+  {short:'Hybrid attention', desc:'CSA + HCA + local', title:'4. Hybrid attention chooses memory resolution', stage:'Attention overview', focus:'hybrid',
+    what:'DeepSeek-V4 uses CSA for detailed sparse long-range retrieval, HCA for cheap global context, and sliding window for recent tokens.',
+    why:'Million-token context is too expensive for vanilla attention over every old token.',
+    output:'The layer has three memory views: selected compressed blocks, heavily compressed summaries, and exact recent tokens.',
+    say:'CSA finds the needle, HCA keeps the big picture, and sliding window preserves the recent words.'},
+  {short:'CSA compress', desc:'Group old KV', title:'5. CSA compresses KV entries into blocks', stage:'CSA compression', focus:'csaCompress',
+    what:'CSA groups old tokens into compressed key-value blocks. Toy m=3 means every three tokens become one memory block.',
+    why:'Compression reduces the number of memory entries before attention even starts.',
+    output:'12 tokens become 4 compressed CSA blocks. Block B2 contains the answer BLUE-731.',
+    say:'CSA first shrinks the memory, then it decides which compressed memories matter.'},
+  {short:'Indexer', desc:'Top-k retrieval', title:'6. Lightning indexer selects the answer block', stage:'Top-k selection', focus:'indexer',
+    what:'A lightweight indexer scores compressed blocks against the query token codename?.',
+    why:'Sparse attention should not read every compressed block. It reads only the most relevant ones.',
+    output:'The highest score is B2, the block containing BLUE-731. Toy top-k=1 keeps B2.',
+    say:'The indexer is the retrieval gate inside attention.'},
+  {short:'Sliding + attn', desc:'Local + retrieved', title:'7. Attention combines retrieved block and recent tokens', stage:'Core attention', focus:'attention',
+    what:'The final KV set contains the selected compressed answer block plus exact recent sliding-window tokens.',
+    why:'The old answer needs retrieval, while the current question wording needs exact local context.',
+    output:'Attention weight on the answer block is 0.68, so the context vector strongly carries BLUE-731 evidence.',
+    say:'Compressed memory provides the answer; local window tells the model what question is being asked.'},
+  {short:'HCA', desc:'Cheap global view', title:'8. HCA gives a coarse global summary', stage:'HCA branch', focus:'hca',
+    what:'HCA compresses more aggressively and attends densely over the heavily compressed entries.',
+    why:'It is cheaper than CSA and helps preserve a broad view of the whole context.',
+    output:'Toy HCA has only two summary blocks. It sees the answer is in the second half, but with less detail than CSA.',
+    say:'HCA is the wide-angle lens; CSA is the zoom lens.'},
+  {short:'mHC update', desc:'Inject attention', title:'9. mHC injects the attention output', stage:'Post-attention residual', focus:'mhcUpdate',
+    what:'The attention output is injected back into the residual lanes through the mHC update.',
+    why:'This preserves useful previous state while adding the newly retrieved evidence.',
+    output:'The hidden state for the query now contains both the question meaning and answer evidence.',
+    say:'mHC updates the state without letting one layer dominate the entire residual stream.'},
+  {short:'MoE', desc:'Route to experts', title:'10. DeepSeekMoE processes the enriched token state', stage:'MoE feed-forward', focus:'moe',
+    what:'The router sends the token to a shared expert and selected routed experts.',
+    why:'MoE provides large capacity while activating only a few experts per token.',
+    output:'Toy experts refine the answer-bearing vector. Real V4 activates 6 routed experts per token.',
+    say:'MoE lets the model store lots of specialized knowledge without paying for every expert every time.'},
+  {short:'Prediction', desc:'Answer logits', title:'11. Prediction head produces the answer distribution', stage:'Logits', focus:'logits',
+    what:'The final hidden vector is multiplied by a vocabulary projection to create logits and probabilities.',
+    why:'Language models output a distribution over next tokens, then a decoder samples or selects a token.',
+    output:'The highest probability is BLUE-731 at 78 percent in this toy example.',
+    say:'The model answer appears after the hidden state is converted back into vocabulary probabilities.'},
+  {short:'MTP + cache', desc:'Training and serving', title:'12. MTP and KV cache complete the picture', stage:'Training/inference extras', focus:'mtp',
+    what:'MTP adds an auxiliary future-token objective during training. The inference system stores heterogeneous KV caches for CSA, HCA, and sliding window.',
+    why:'MTP improves training signal, while the custom KV layout makes long-context serving practical.',
+    output:'The architecture is not only the block math; it also includes training and serving design choices.',
+    say:'DeepSeek-V4 is architecture plus systems co-design for million-token context.'}
+];
+let current = 0;
+let playing = false;
+let timer = null;
+const timeline = document.getElementById('timeline');
+const stage = document.getElementById('stage');
+const infoPanel = document.getElementById('infoPanel');
+const progressBar = document.getElementById('progressBar');
+const packet = document.getElementById('packet');
+const playBtn = document.getElementById('playBtn');
+const speedRange = document.getElementById('speedRange');
+function fmt(x){return Number(x).toFixed(2).replace(/\.00$/,'');}
+function escapeHtml(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+function matrix(title, rows, opts={}){
+  const rowLabels = opts.rowLabels || rows.map((_,i)=>String(i));
+  const colLabels = opts.colLabels || rows[0].map((_,i)=>'f'+(i+1));
+  const activeRows = new Set(opts.activeRows||[]);
+  const goodRows = new Set(opts.goodRows||[]);
+  const amberRows = new Set(opts.amberRows||[]);
+  const activeCells = new Set((opts.activeCells||[]).map(x=>x.join(',')));
+  const small = opts.small ? ' small' : '';
+  let html = `<div class="panel"><div class="panel-title">${title}<span class="mini">${opts.mini||''}</span></div><div class="matrix-wrap"><table class="matrix"><tr><th></th>${colLabels.map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
+  rows.forEach((r,i)=>{
+    html += `<tr><th>${escapeHtml(rowLabels[i])}</th>`;
+    r.forEach((v,j)=>{
+      let cls = small;
+      if(activeRows.has(i) || activeCells.has(i+','+j)) cls += ' active pulse';
+      if(goodRows.has(i)) cls += ' good';
+      if(amberRows.has(i)) cls += ' amber';
+      if(opts.dimRows && opts.dimRows.includes(i)) cls += ' mutedcell';
+      html += `<td class="${cls}" style="animation-delay:${(i*40+j*20)}ms">${typeof v==='number'?fmt(v):escapeHtml(v)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</table></div></div>';
+  return html;
+}
+function tokenRibbon(active=[], good=[], local=[], dim=[]){
+  const A=new Set(active), G=new Set(good), L=new Set(local), D=new Set(dim);
+  return `<div class="tokens">${tokens.map((t,i)=>{
+    let cls='token'; if(A.has(i)) cls+=' active'; if(G.has(i)) cls+=' good'; if(L.has(i)) cls+=' local'; if(D.has(i)) cls+=' dim';
+    return `<div class="${cls}" style="animation-delay:${i*25}ms">${escapeHtml(t)}<span class="pos">pos ${i}</span></div>`;
+  }).join('')}</div>`;
+}
+function flowSvg(activeIndex){
+  const labels=['Input','Embed','mHC','CSA/HCA','MoE','Logits'];
+  const xs=[70,215,360,520,675,825];
+  let lines='';
+  for(let i=0;i<xs.length-1;i++) lines += `<line x1="${xs[i]+50}" y1="75" x2="${xs[i+1]-50}" y2="75" class="${i<activeIndex?'flow-line-active':'flow-line'}"/>`;
+  let nodes=labels.map((l,i)=>`<g><rect x="${xs[i]-52}" y="48" width="104" height="54" rx="16" class="${i===activeIndex?'flow-node-active':'flow-node'}"/><text x="${xs[i]}" y="80" class="flow-text ${i===activeIndex?'flow-text-active':''}">${l}</text></g>`).join('');
+  return `<div class="flow-board"><svg class="flow-svg" viewBox="0 0 900 150" role="img" aria-label="architecture flow"><defs><filter id="soft"><feGaussianBlur stdDeviation="3"/></filter></defs>${lines}${nodes}</svg></div>`;
+}
+function blocksHTML(blocks, selectedName){
+  return `<div class="block-chain">${blocks.map((b,idx)=>{
+    const isSel = b.name===selectedName;
+    return `<div class="block ${isSel?'good':'active'}"><b>${b.name}: ${b.label}</b><span>${b.tokens.map(i=>tokens[i]).join(' / ')}</span><span>vec [${b.vec.map(fmt).join(', ')}]</span></div>${idx<blocks.length-1?'<div class="arrow">-></div>':''}`;
+  }).join('')}</div>`;
+}
+function bars(title, rows){
+  return `<div class="panel"><div class="panel-title">${title}</div><div class="bars">${rows.map((r,i)=>`<div class="bar-row" style="animation-delay:${i*40}ms"><div class="bar-label">${escapeHtml(r[0])}</div><div class="bar-track"><div class="bar-fill ${r[2]||''}" style="width:${Math.max(2,r[1]*100/1.6)}%"></div></div><div class="bar-value">${fmt(r[1])}</div></div>`).join('')}</div></div>`;
+}
+function probabilityBars(title, rows){
+  return `<div class="panel"><div class="panel-title">${title}</div><div class="bars">${rows.map((r,i)=>`<div class="bar-row"><div class="bar-label">${escapeHtml(r[0])}</div><div class="bar-track"><div class="bar-fill ${r[2]||''}" style="width:${Math.max(2,r[1]*100)}%"></div></div><div class="bar-value">${fmt(r[1])}</div></div>`).join('')}</div></div>`;
+}
+function stepVisual(){
+  const s=steps[current];
+  const activeFlow = current<2?current:current<4?2:current<8?3:current<10?4:5;
+  let html = `<div class="stage-head"><div><h2 class="stage-title">${s.title}</h2><p class="stage-sub">${s.stage}</p></div><div class="stage-badge">Step ${current+1} of ${steps.length}</div></div>${flowSvg(activeFlow)}`;
+  switch(s.focus){
+    case 'input':
+      html += `<div class="visual-grid single"><div class="panel"><div class="panel-title">Tokenized sequence <span class="mini">answer is far before the question</span></div>${tokenRibbon([10,11],[6],[],[])}</div></div><div class="visual-grid three" style="margin-top:14px"><div class="panel"><div class="panel-title">Document part</div><p class="stage-sub">Positions 0-8 contain the document. The answer appears at position 6.</p></div><div class="panel"><div class="panel-title">Question part</div><p class="stage-sub">Positions 10-11 ask for the codename near the end.</p></div><div class="panel"><div class="panel-title">Task</div><p class="stage-sub">Use long-range evidence to answer: <b>BLUE-731</b>.</p></div></div>`;
+      break;
+    case 'embed':
+      html += `<div class="visual-grid single"><div class="panel"><div class="panel-title">Token ribbon</div>${tokenRibbon([6,11],[6],[],[])}</div></div><div class="visual-grid single" style="margin-top:14px">${matrix('Embedding matrix H0', embeddings,{rowLabels:tokens,colLabels:['topic','code','value','position'],goodRows:[6],activeRows:[11],small:true,mini:'toy shape 12 x 4'})}</div>`;
+      break;
+    case 'mhc':
+      html += `<div class="visual-grid"><div>${matrix('Toy mHC residual lanes', [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],{rowLabels:['lane 1','lane 2','lane 3','lane 4'],colLabels:['f1','f2','f3','f4'],activeRows:[0,1,2,3]})}</div><div>${matrix('Stable B matrix', mhcB,{rowLabels:['l1','l2','l3','l4'],colLabels:['l1','l2','l3','l4'],activeRows:[0,1,2,3]})}<div class="formula big-formula" style="margin-top:12px">X_next = B X + C F(A X)</div></div></div>`;
+      break;
+    case 'hybrid':
+      html += `<div class="visual-grid three"><div class="panel"><div class="panel-title">CSA</div><p class="stage-sub"><b>Detailed retrieval.</b> Compress blocks, score them, keep top-k.</p></div><div class="panel"><div class="panel-title">HCA</div><p class="stage-sub"><b>Coarse global view.</b> Compress much harder, then dense attention over summaries.</p></div><div class="panel"><div class="panel-title">Sliding window</div><p class="stage-sub"><b>Exact local context.</b> Keep recent tokens uncompressed.</p></div></div><div class="visual-grid single" style="margin-top:14px"><div class="panel"><div class="panel-title">Why hybrid?</div>${tokenRibbon([11],[6],[8,9,10],[0,1,2,3,4,5,7])}</div></div>`;
+      break;
+    case 'csaCompress':
+      html += `<div class="visual-grid single"><div class="panel"><div class="panel-title">CSA blocks <span class="mini">toy m=3, real m=4</span></div>${blocksHTML(csaBlocks,'B2')}</div></div><div class="visual-grid single" style="margin-top:14px">${matrix('Compressed KV entries C_comp', csaBlocks.map(b=>b.vec),{rowLabels:csaBlocks.map(b=>b.name+' '+b.label),colLabels:['topic','code','value','position'],goodRows:[2],small:true})}</div>`;
+      break;
+    case 'indexer':
+      html += `<div class="visual-grid"><div>${matrix('Query token vector: codename?', [embeddings[11]],{rowLabels:['q at pos 11'],colLabels:['topic','code','value','position'],activeRows:[0]})}${matrix('Indexer scores', csaBlocks.map(b=>[b.score]),{rowLabels:csaBlocks.map(b=>b.name),colLabels:['score'],goodRows:[2],small:false})}</div><div>${bars('Top-k score chart', csaBlocks.map(b=>[b.name+' '+b.label,b.score,b.name==='B2'?'good':'']))}<div class="formula" style="margin-top:12px">top-k = 1 in toy -> keep B2<br>real V4-Pro top-k = 1024<br>real V4-Flash top-k = 512</div></div></div>`;
+      break;
+    case 'attention':
+      html += `<div class="visual-grid"><div>${matrix('Final KV set for query', finalKV.map(r=>r.slice(1)),{rowLabels:finalKV.map(r=>r[0]),colLabels:['topic','code','value','position'],goodRows:[0],amberRows:[1,2,3],small:true})}</div><div>${probabilityBars('Attention weights', attnWeights)}<div class="formula" style="margin-top:12px">context = 0.68 * answer_block + local question tokens</div></div></div>`;
+      break;
+    case 'hca':
+      html += `<div class="visual-grid"><div class="panel"><div class="panel-title">HCA chunks <span class="mini">toy m'=6, real m'=128</span></div>${blocksHTML(hcaBlocks,'H1')}</div><div>${matrix('Heavily compressed KV', hcaBlocks.map(b=>b.vec),{rowLabels:hcaBlocks.map(b=>b.name),colLabels:['topic','code','value','position'],activeRows:[1],small:true})}${probabilityBars('Dense attention over summaries', hcaBlocks.map(b=>[b.name+' '+b.label,b.weight,b.name==='H1'?'good':'']))}</div></div>`;
+      break;
+    case 'mhcUpdate':
+      html += `<div class="visual-grid"><div>${matrix('Attention output for query', [[0.24,0.96,0.74,0.22]],{rowLabels:['attn out'],colLabels:['topic','code','value','position'],goodRows:[0]})}<div class="formula big-formula" style="margin-top:12px">X1 = B X0 + C * attention_output</div></div><div>${matrix('Updated query hidden state', [[0.28,1.12,0.84,0.18]],{rowLabels:['query state'],colLabels:['topic','code','value','position'],activeRows:[0]})}</div></div>`;
+      break;
+    case 'moe':
+      html += `<div class="visual-grid single"><div class="expert-grid"><div class="expert shared"><b>Shared expert</b><span>Always active. Maintains general language ability.</span></div><div class="expert selected"><b>Identifier expert</b><span>Specializes in names, codes, IDs.</span></div><div class="expert"><b>Math/page expert</b><span>Not selected strongly for this token.</span></div><div class="expert selected"><b>Question expert</b><span>Understands what the user asks for.</span></div></div></div><div class="visual-grid" style="margin-top:14px">${matrix('MoE input', moeInput,{rowLabels:['query'],colLabels:['topic','code','value','position'],activeRows:[0]})}${matrix('MoE output', moeOut,{rowLabels:['query'],colLabels:['topic','code','value','position'],goodRows:[0]})}</div>`;
+      break;
+    case 'logits':
+      html += `<div class="visual-grid single"><div class="logit-grid">${logits.map((l,i)=>`<div class="logit ${i===0?'best':''}"><b>${escapeHtml(l[0])}</b><div class="prob">${Math.round(l[2]*100)}%</div><span>logit ${fmt(l[1])}</span></div>`).join('')}</div></div><div class="visual-grid" style="margin-top:14px">${matrix('Final hidden vector', moeOut,{rowLabels:['query'],colLabels:['topic','code','value','position'],activeRows:[0]})}<div class="panel"><div class="panel-title">Final answer</div><p class="stage-sub" style="font-size:28px;margin:0;color:var(--good);font-weight:900">BLUE-731</p><p class="stage-sub">The highest probability token is selected in this toy demo.</p></div></div>`;
+      break;
+    case 'mtp':
+      html += `<div class="visual-grid"><div class="panel"><div class="panel-title">MTP training branch</div><div class="block-chain"><div class="block active"><b>Final hidden</b><span>main state</span></div><div class="arrow">-></div><div class="block active"><b>Prediction head</b><span>next-token loss</span></div><div class="arrow">+</div><div class="block"><b>MTP module</b><span>future-token loss</span></div></div><div class="formula" style="margin-top:12px">Training loss = LM loss + weighted MTP loss</div></div><div class="panel"><div class="panel-title">Hybrid KV cache</div><div class="block-chain"><div class="block good"><b>CSA KV</b><span>compressed selected memory</span></div><div class="block active"><b>HCA KV</b><span>heavily compressed summary</span></div><div class="block amber"><b>SWA state</b><span>recent exact tokens</span></div></div><p class="stage-sub">The inference system stores these different caches separately because they have different sizes and update rules.</p></div></div>`;
+      break;
+  }
+  return html;
+}
+function renderTimeline(){
+  timeline.innerHTML = steps.map((s,i)=>`<button class="step-btn ${i===current?'active':''}" data-step="${i}"><div class="step-num">${i+1}</div><div><div class="step-label">${s.short}</div><div class="step-desc">${s.desc}</div></div></button>`).join('');
+  timeline.querySelectorAll('.step-btn').forEach(b=>b.addEventListener('click',()=>go(Number(b.dataset.step))));
+}
+function renderInfo(){
+  const s=steps[current];
+  infoPanel.innerHTML = `<div class="info-card what"><h3>What happens?</h3><p>${s.what}</p></div><div class="info-card why"><h3>Why it matters</h3><p>${s.why}</p></div><div class="info-card output"><h3>Block output</h3><p>${s.output}</p></div><div class="info-card say"><h3>Say this out loud</h3><p class="say-line">${s.say}</p></div>`;
+}
+function render(){
+  renderTimeline();
+  stage.innerHTML = '<div class="scan-line"></div>' + stepVisual();
+  renderInfo();
+  const pct = current/(steps.length-1)*100;
+  progressBar.style.width = pct + '%';
+  packet.style.left = pct + '%';
+  document.getElementById('playerTitle').textContent = `Step ${current+1}: ${steps[current].short}`;
+  document.getElementById('playerNote').textContent = steps[current].desc;
+}
+function go(i){current=Math.max(0,Math.min(steps.length-1,i));render();}
+function next(){ if(current===steps.length-1){pause();return;} go(current+1); }
+function prev(){ go(current-1); }
+function play(){ if(playing){pause();return;} playing=true; playBtn.textContent='Pause'; timer=setInterval(next, Number(speedRange.value)); }
+function pause(){ playing=false; playBtn.textContent='Play'; if(timer) clearInterval(timer); timer=null; }
+document.getElementById('prevBtn').addEventListener('click',prev);
+document.getElementById('nextBtn').addEventListener('click',next);
+playBtn.addEventListener('click',play);
+document.getElementById('resetBtn').addEventListener('click',()=>{pause();go(0);});
+speedRange.addEventListener('input',()=>{ if(playing){ pause(); play(); }});
+document.addEventListener('keydown',(e)=>{ if(e.key==='ArrowRight') next(); if(e.key==='ArrowLeft') prev(); if(e.key===' '){e.preventDefault();play();} });
+render();
+</script>
+</body>
+</html>
